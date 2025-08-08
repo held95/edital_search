@@ -1,117 +1,67 @@
 import streamlit as st
 import re
 from PyPDF2 import PdfReader
-from PIL import Image
-import pytesseract
 from pdf2image import convert_from_bytes
-import docx
+import pytesseract
 from io import BytesIO
-from docx import Document
-from fpdf import FPDF
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
-# Palavras-chave
-PALAVRAS_CHAVE = [
-    "Esclarecimento", "Impugnação", "data de abertura", "recursos",
-    "prazo", "horas", "garantia", "caução", "seguro-garantia",
-    "entrega", "atestado de capacidade técnica", "regional", "local"
-]
+# Configuração do Tesseract (caso necessário, ajuste o caminho)
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-def encontrar_contexto(texto, palavra, n_caracteres=120):
-    trechos = []
-    for match in re.finditer(re.escape(palavra), texto, flags=re.IGNORECASE):
-        start = max(match.start() - n_caracteres, 0)
-        end = min(match.end() + n_caracteres, len(texto))
-        contexto = texto[start:end].replace('\n', ' ').strip()
-        trechos.append(contexto)
-    return trechos
+st.title("Leitor de Editais com Busca de Palavras")
 
-st.title("🔍 Analisador de Palavras-chave em Documentos")
-st.markdown("Faça upload de arquivos PDF, Word ou imagens e clique em **Gerar Relatório**.")
+# Lista de palavras para busca
+palavras_chave = ["Esclarecimento", "Edital", "Licitação"]
 
-uploaded_files = st.file_uploader(
-    "📁 Upload de documentos",
-    type=["pdf", "jpg", "jpeg", "docx"],
-    accept_multiple_files=True
-)
+uploaded_file = st.file_uploader("Envie o arquivo PDF", type=["pdf"])
 
-relatorios = []
+if uploaded_file is not None:
+    texto_extraido = ""
 
-if st.button("🚀 Gerar Relatório") and uploaded_files:
-    with st.spinner("🔄 Processando arquivos..."):
-        for file in uploaded_files:
-            st.markdown("---")
-            texto = ''
-            try:
-                ext = file.name.lower().split(".")[-1]
+    # Leitura do PDF
+    try:
+        pdf = PdfReader(uploaded_file)
+        for pagina in pdf.pages:
+            texto_extraido += pagina.extract_text() or ""
 
-                # --- PDF ---
-                if ext == "pdf":
-                    file.seek(0)
-                    leitor = PdfReader(file)
-                    for pagina in leitor.pages:
-                        texto_pagina = pagina.extract_text()
-                        if texto_pagina:
-                            texto += texto_pagina
-                    if not texto.strip():
-                        file.seek(0)
-                        imagens = convert_from_bytes(file.read())
-                        for img in imagens:
-                            texto += pytesseract.image_to_string(img, lang='por+eng') + '\n'
+    except Exception:
+        # Caso não consiga ler como texto, tenta via OCR
+        imagens = convert_from_bytes(uploaded_file.read())
+        for img in imagens:
+            texto_extraido += pytesseract.image_to_string(img, lang='por')
 
-                # --- IMAGEM ---
-                elif ext in ["jpg", "jpeg"]:
-                    imagem = Image.open(file)
-                    texto = pytesseract.image_to_string(imagem, lang='por+eng')
+    # Limpa e prepara texto
+    texto_extraido = re.sub(r'\s+', ' ', texto_extraido).strip()
 
-                # --- WORD ---
-                elif ext == "docx":
-                    doc = docx.Document(file)
-                    texto = '\n'.join([p.text for p in doc.paragraphs])
+    # Exibe o conteúdo no terminal e no Streamlit
+    st.subheader("Resumo do conteúdo lido:")
+    st.write(texto_extraido)
 
-                texto_limpo = texto.strip()
-                resumo = texto_limpo[:500] + '...' if len(texto_limpo) > 500 else texto_limpo
+    # Botão único para baixar PDF do que foi lido
+    def gerar_pdf(conteudo):
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=letter)
+        largura, altura = letter
 
-                st.subheader(f"📄 Arquivo: {file.name}")
-                st.markdown("🔍 **Prévia do Texto:**")
-                st.code(resumo)
+        y = altura - 40
+        for linha in conteudo.split("\n"):
+            if y < 40:  # Nova página se chegar ao final
+                c.showPage()
+                y = altura - 40
+            c.drawString(40, y, linha)
+            y -= 15
 
-                relatorio = [f"📄 Arquivo: {file.name}\n", f"🔍 Prévia do Texto:\n{resumo}\n"]
+        c.save()
+        buffer.seek(0)
+        return buffer
 
-                for palavra in PALAVRAS_CHAVE:
-                    trechos = encontrar_contexto(texto_limpo, palavra)
-                    if trechos:
-                        st.markdown(f"➡️ **Palavra:** `{palavra}` | Ocorrências: `{len(trechos)}`")
-                        relatorio.append(f"➡️ Palavra: '{palavra}' | Ocorrências: {len(trechos)}\n")
-                        for i, trecho in enumerate(trechos[:3], 1):
-                            st.markdown(f"- ✏️ **Contexto {i}:** ...{trecho}...")
-                            relatorio.append(f"   ✏️ Contexto {i}: ...{trecho}...\n")
-
-                relatorios.append('\n'.join(relatorio))
-
-            except Exception as e:
-                st.error(f"Erro ao processar {file.name}: {e}")
-
-# --- Botão único para baixar PDF ---
-if relatorios:
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-
-    # Adicionando fonte UTF-8 compatível
-    pdf.add_font("DejaVu", "", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", uni=True)
-    pdf.set_font("DejaVu", size=12)
-
-    for rel in relatorios:
-        for line in rel.splitlines():
-            pdf.multi_cell(0, 10, line)
-        pdf.cell(0, 10, "-" * 60, ln=True)
-
-    pdf_bytes = pdf.output(dest='S').encode('latin-1', 'replace')
-    buffer = BytesIO(pdf_bytes)
+    pdf_pronto = gerar_pdf(texto_extraido)
 
     st.download_button(
-        "📥 Baixar PDF do que foi lido no terminal",
-        data=buffer,
-        file_name="relatorio_final.pdf",
+        label="📄 Baixar PDF do que foi lido no terminal",
+        data=pdf_pronto,
+        file_name="relatorio_leitura.pdf",
         mime="application/pdf"
     )
