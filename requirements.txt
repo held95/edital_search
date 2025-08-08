@@ -1,7 +1,7 @@
-streamlit
-fpdf
-python-docx
-PyPDF2
-pdf2image
-pytesseract
-Pillow
+streamlit>=1.36.0
+fpdf2>=2.7.9
+python-docx>=1.1.2
+PyPDF2>=3.0.1
+pdf2image>=1.17.0
+pytesseract>=0.3.10
+Pillow>=10.3.0
