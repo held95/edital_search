@@ -82,7 +82,9 @@ if st.button("🚀 Gerar Relatório") and uploaded_files:
             except Exception as e:
                 st.error(f"Erro ao processar {file.name}: {e}")
 
-   if relatorios:
+
+# Exportação
+if relatorios:
     opcao = st.selectbox("📤 Exportar como:", ["Word", "PDF"])
 
     if st.button("💾 Gerar Arquivo"):
@@ -120,3 +122,4 @@ if st.button("🚀 Gerar Relatório") and uploaded_files:
                 file_name=f"{nome_arquivo}.pdf", 
                 mime="application/pdf"
             )
+
