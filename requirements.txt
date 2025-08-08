@@ -1,5 +1,7 @@
 streamlit
-PyPDF2
+PyPDF2==1.26.0
 pillow
 pytesseract
 pdf2image
+python-docx
+fpdf
