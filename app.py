@@ -83,28 +83,30 @@ if st.button("🚀 Gerar Relatório") and uploaded_files:
                 st.error(f"Erro ao processar {file.name}: {e}")
 
     if relatorios:
-        opcao = st.selectbox("📤 Exportar como:", ["Word", "PDF"])
-        if st.button("💾 Gerar Arquivo"):
-            nome_arquivo = "relatorio_final"
-            if opcao == "Word":
-                doc = Document()
-                for rel in relatorios:
-                    doc.add_paragraph(rel)
-                    doc.add_paragraph("------------------------------------------------")
-                buffer = BytesIO()
-                doc.save(buffer)
-                buffer.seek(0)
-                st.download_button("📥 Baixar Word", data=buffer, file_name=f"{nome_arquivo}.docx")
-            elif opcao == "PDF":
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_auto_page_break(auto=True, margin=15)
-                pdf.set_font("Arial", size=12)
-                for rel in relatorios:
-                    for line in rel.splitlines():
-                        pdf.multi_cell(0, 10, line)
-                    pdf.cell(0, 10, "-"*60, ln=True)
-                buffer = BytesIO()
-                pdf.output(buffer)
-                buffer.seek(0)
-                st.download_button("📥 Baixar PDF", data=buffer, file_name=f"{nome_arquivo}.pdf")
+    opcao = st.selectbox("📤 Exportar como:", ["Word", "PDF"])
+    if st.button("💾 Gerar Arquivo"):
+        nome_arquivo = "relatorio_final"
+        
+        if opcao == "Word":
+            doc = Document()
+            for rel in relatorios:
+                doc.add_paragraph(rel)
+                doc.add_paragraph("------------------------------------------------")
+            buffer = BytesIO()
+            doc.save(buffer)
+            buffer.seek(0)
+            st.download_button("📥 Baixar Word", data=buffer, file_name=f"{nome_arquivo}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+        elif opcao == "PDF":
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.set_font("Arial", size=12)
+            for rel in relatorios:
+                for line in rel.splitlines():
+                    pdf.multi_cell(0, 10, line)
+                pdf.cell(0, 10, "-" * 60, ln=True)
+            # Corrigido: usar output(dest='S').encode('latin-1')
+            pdf_bytes = pdf.output(dest='S').encode('latin-1')
+            buffer = BytesIO(pdf_bytes)
+            st.download_button("📥 Baixar PDF", data=buffer, file_name=f"{nome_arquivo}.pdf", mime="application/pdf")
